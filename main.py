@@ -2,7 +2,6 @@ from datetime import date
 import hashlib
 import io
 import json
-from google.oauth2.service_account import Credentials
 import gspread
 import pandas as pd
 import streamlit as st
@@ -15,16 +14,11 @@ st.set_page_config(
 # --- KẾT NỐI GOOGLE SHEETS ---
 @st.cache_resource
 def init_gsheet():
-  scopes = [
-      "https://googleapis.com",
-      "https://googleapis.com",
-  ]
   raw_creds = st.secrets["gcp_service_account"]
   creds_dict = (
       json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
   )
-  creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-  client = gspread.authorize(creds)
+  client = gspread.service_account_from_dict(creds_dict)
   return client.open_by_key(st.secrets["sheet_id"])
 
 
