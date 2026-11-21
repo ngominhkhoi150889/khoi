@@ -9,6 +9,32 @@ import streamlit as st
 st.set_page_config(
     page_title="Quản lý Chi tiêu", page_icon="💸", layout="wide"
 )
+status_box = st.empty()
+status_box.info("⏳ Đang đọc cấu hình Secrets...")
+
+try:
+  raw_creds = st.secrets["gcp_service_account"]
+  creds_dict = (
+      json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
+  )
+  sheet_id = st.secrets["sheet_id"]
+except Exception as e:
+  status_box.error(f"❌ Lỗi định dạng Secrets: {e}")
+  st.stop()
+
+status_box.info("⏳ Đang kết nối tới Google Sheets...")
+try:
+  client = gspread.service_account_from_dict(creds_dict)
+  client.http_client.set_timeout(15)  # Giới hạn tối đa 15 giây để không xoay vô tận
+  sh = client.open_by_key(sheet_id)
+  ws_chitieu = sh.worksheet("chi_tieu")
+  ws_users = sh.worksheet("users")
+  ws_config = sh.worksheet("config")
+  status_box.empty()  # Kết nối xong thì xóa dòng thông báo
+except Exception as e:
+  status_box.error(f"❌ Lỗi kết nối Google Sheets: {repr(e)}")
+  st.stop()
+
 
 
 # --- KẾT NỐI GOOGLE SHEETS ---
