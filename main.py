@@ -25,7 +25,8 @@ def init_gsheet():
   )
   creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
   client = gspread.authorize(creds)
-  return client.open(st.secrets["sheet_name"])
+  return client.open_by_key(st.secrets["sheet_id"])
+
 
 
 try:
