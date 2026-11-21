@@ -37,7 +37,10 @@ except Exception as e:
 
 
 
-# --- KẾT NỐI GOOGLE SHEETS ---
+
+
+
+# --- KẾT NỐI GOOGLE SHEETS (CHỈ KẾT NỐI 1 LẦN DUY NHẤT) ---
 @st.cache_resource
 def init_gsheet():
   raw_creds = st.secrets["gcp_service_account"]
@@ -45,25 +48,31 @@ def init_gsheet():
       json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
   )
   client = gspread.service_account_from_dict(creds_dict)
-  return client.open_by_key(st.secrets["sheet_id"])
-
+  client.http_client.set_timeout(15)
+  sh = client.open_by_key(st.secrets["sheet_id"])
+  return {
+      "chi_tieu": sh.worksheet("chi_tieu"),
+      "users": sh.worksheet("users"),
+      "config": sh.worksheet("config"),
+  }
 
 
 try:
-  sh = init_gsheet()
-  ws_chitieu = sh.worksheet("chi_tieu")
-  ws_users = sh.worksheet("users")
-  ws_config = sh.worksheet("config")
+  sheets = init_gsheet()
+  ws_chitieu = sheets["chi_tieu"]
+  ws_users = sheets["users"]
+  ws_config = sheets["config"]
 except Exception as e:
-  st.error(f"Lỗi kết nối Google Sheets. Hãy kiểm tra lại Secrets và tên Sheet: {e}")
+  st.error(f"Lỗi kết nối Google Sheets: {e}")
   st.stop()
 
 
-# --- HÀM BẢO MẬT & QUẢN LÝ TÀI KHOẢN ---
+# --- HÀM BẢO MẬT & QUẢN LÝ TÀI KHOẢN (CÓ CACHE) ---
 def hash_password(password):
   return hashlib.sha256(password.encode()).hexdigest()
 
 
+@st.cache_data(ttl=120)
 def load_users():
   records = ws_users.get_all_records()
   users = {}
@@ -88,15 +97,18 @@ def load_users():
 
 def add_user_to_sheet(username, password, display_name, role="member"):
   ws_users.append_row([username, hash_password(password), display_name, role])
+  load_users.clear()
 
 
 def delete_user_from_sheet(username):
   cell = ws_users.find(username)
   if cell:
     ws_users.delete_rows(cell.row)
+    load_users.clear()
 
 
-# --- HÀM XỬ LÝ DỮ LIỆU & NGÂN SÁCH ---
+# --- HÀM XỬ LÝ DỮ LIỆU & NGÂN SÁCH (CÓ CACHE) ---
+@st.cache_data(ttl=60)
 def load_data():
   records = ws_chitieu.get_all_records()
   if not records:
@@ -116,8 +128,10 @@ def save_all_data(df):
     df_save = df.copy()
     df_save["Ngày"] = df_save["Ngày"].astype(str)
     ws_chitieu.append_rows(df_save.values.tolist())
+  load_data.clear()
 
 
+@st.cache_data(ttl=120)
 def load_budget():
   records = ws_config.get_all_records()
   for r in records:
@@ -133,6 +147,7 @@ def save_budget(amount):
     ws_config.update_cell(cell.row, 2, int(amount))
   else:
     ws_config.append_row(["han_muc", int(amount)])
+  load_budget.clear()
 
 
 def to_excel(df_export):
@@ -317,6 +332,7 @@ with st.sidebar:
             int(so_tien),
             st.session_state.display_name,
         ])
+        load_data.clear()
         st.rerun()
 
   if is_admin:
@@ -330,5 +346,3 @@ with st.sidebar:
           u_info = users_db[u_key]
           u_col1, u_col2 = st.columns([2, 1])
           u_col1.write(f"• **{u_info['display_name']}** (`{u_key}`)")
-          if u_col2.button("Xóa", key=f"del_user_{u_key}"):
-            delete_user_from_sheet(u_key)
