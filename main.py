@@ -1,4 +1,4 @@
-from datetime import date
+    from datetime import date
 import hashlib
 import io
 import json
@@ -345,74 +345,74 @@ else:
     st.divider()
     ch1, ch2 = st.columns(2)
 with ch1:
-st.subheader("📈 So sánh chi tiêu giữa các tháng")
+    st.subheader("📈 So sánh chi tiêu giữa các tháng")
 if not df.empty:
-st.bar_chart(df.groupby("YM")["So_tien"].sum().sort_index())
+    st.bar_chart(df.groupby("YM")["So_tien"].sum().sort_index())
 else:
-st.caption("Chưa đủ dữ liệu để so sánh.")
+    st.caption("Chưa đủ dữ liệu để so sánh.")
 with ch2:
-st.subheader(
-f"📊 Phân bổ danh mục (Tháng {thang_chon.split('-')}/{thang_chon.split('-')})"
-)
+    st.subheader(
+    f"📊 Phân bổ danh mục (Tháng {thang_chon.split('-')}/{thang_chon.split('-')})"
+    )
 if not df_t.empty:
-st.bar_chart(df_t.groupby("Danh_muc")["So_tien"].sum())
+    st.bar_chart(df_t.groupby("Danh_muc")["So_tien"].sum())
 else:
-st.caption("Không có khoản chi nào trong tháng này.")
-st.divider()
-hc1, hc2 = st.columns()
+    st.caption("Không có khoản chi nào trong tháng này.")
+    st.divider()
+    hc1, hc2 = st.columns()
 with hc1:
-st.subheader("📋 Chi tiết giao dịch")
+    st.subheader("📋 Chi tiết giao dịch")
 with hc2:
-if not df_t.empty:
-df_ex = df_t.drop(columns=["YM"], errors="ignore")
-st.download_button(
-"📥 Xuất Excel (.xlsx)",
-to_excel(df_ex),
-f"Chi_tieu_{thang_chon}.xlsx",
-"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-use_container_width=True,
-)
+    if not df_t.empty:
+        df_ex = df_t.drop(columns=["YM"], errors="ignore")
+        st.download_button(
+    "📥 Xuất Excel (.xlsx)",
+    to_excel(df_ex),
+    f"Chi_tieu_{thang_chon}.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True,
+    )
 if df_t.empty:
-st.info("Chưa có dữ liệu chi tiêu nào phù hợp.")
+    st.info("Chưa có dữ liệu chi tiêu nào phù hợp.")
 else:
-df_s = df_t.sort_values(by="Ngay", ascending=False)
+    df_s = df_t.sort_values(by="Ngay", ascending=False)
 if bi_khoa:
-cols = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
-cols.markdown("Ngày")
-cols.markdown("Danh mục")
-cols.markdown("Mô tả")
-cols.markdown("Số tiền")
-cols.markdown("Người tạo")
+    cols = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
+    cols.markdown("Ngày")
+    cols.markdown("Danh mục")
+    cols.markdown("Mô tả")
+    cols.markdown("Số tiền")
+    cols.markdown("Người tạo")
 else:
-cols = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
-cols.markdown("Ngày")
-cols.markdown("Danh mục")
-cols.markdown("Mô tả")
-cols.markdown("Số tiền")
-cols.markdown("Người tạo")
-cols.markdown("Xóa")
-st.markdown("---")
+    cols = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
+    cols.markdown("Ngày")
+    cols.markdown("Danh mục")
+    cols.markdown("Mô tả")
+    cols.markdown("Số tiền")
+    cols.markdown("Người tạo")
+    cols.markdown("Xóa")
+    st.markdown("---")
 for idx, row in df_s.iterrows():
-if bi_khoa:
-rc = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
-rc.write(str(row["Ngay"]))
-rc.write(row["Danh_muc"])
-rc.write(row["Mo_ta"])
-rc.write(f"{row['So_tien']:,.0f} đ")
-rc.write(f"👤 {row['Nguoi_tao']}")
+    if bi_khoa:
+        rc = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
+        rc.write(str(row["Ngay"]))
+        rc.write(row["Danh_muc"])
+        rc.write(row["Mo_ta"])
+        rc.write(f"{row['So_tien']:,.0f} đ")
+        rc.write(f"👤 {row['Nguoi_tao']}")
 else:
-rc = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
-rc.write(str(row["Ngay"]))
-rc.write(row["Danh_muc"])
-rc.write(row["Mo_ta"])
-rc.write(f"{row['So_tien']:,.0f} đ")
-rc.write(f"👤 {row['Nguoi_tao']}")
-can_del = is_admin or (row["Nguoi_tao"] == st.session_state.display_name)
+        rc = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
+        rc.write(str(row["Ngay"]))
+        rc.write(row["Danh_muc"])
+        rc.write(row["Mo_ta"])
+        rc.write(f"{row['So_tien']:,.0f} đ")
+        rc.write(f"👤 {row['Nguoi_tao']}")
+        can_del = is_admin or (row["Nguoi_tao"] == st.session_state.display_name)
 if can_del:
-if rc.button("🗑️", key=f"del_{idx}", help="Xóa khoản chi này"):
-df_u = df.drop(index=idx).drop(columns=["YM"], errors="ignore")
-save_all(df_u)
-st.rerun()
-else:
-rc.write("—")
+    if rc.button("🗑️", key=f"del_{idx}", help="Xóa khoản chi này"):
+        df_u = df.drop(index=idx).drop(columns=["YM"], errors="ignore")
+        save_all(df_u)
+        st.rerun()
+    else:
+        rc.write("—")
 
