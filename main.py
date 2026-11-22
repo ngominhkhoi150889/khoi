@@ -359,7 +359,8 @@ if not df_t.empty:
 else:
     st.caption("Không có khoản chi nào trong tháng này.")
     st.divider()
-    hc1, hc2 = st.columns()
+    hc1, hc2 = st.columns((3, 1))
+
 with hc1:
     st.subheader("📋 Chi tiết giao dịch")
 with hc2:
