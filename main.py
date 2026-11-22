@@ -292,36 +292,36 @@ with st.sidebar:
     st.error("Tháng này đã bị khóa sổ.")
   else:
     ngay_dau_thang = hom_nay.replace(day=1)
-    with st.form("form_chi_tieu", clear_on_submit=True):
-      ngay = st.date_input(
-          "Ngày chi",
-          value=hom_nay,
-          min_value=ngay_dau_thang,
-          max_value=hom_nay,
-      )
-      danh_muc = st.selectbox(
-          "Danh mục",
-          [
-              "Ăn uống",
-              "Di chuyển",
-              "Mua sắm",
-              "Hóa đơn & Tiện ích",
-              "Giải trí",
-              "Khác",
-          ],
-      )
-      mo_ta = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
-      so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
-      st.caption(f"Người tạo: **{st.session_state.display_name}**")
+          with st.form("form_chi_tieu", clear_on_submit=True):
+          ngay = st.date_input(
+              "Ngày chi",
+              value=hom_nay,
+              min_value=ngay_dau_thang,
+              max_value=hom_nay,
+          )
+          danh_muc = st.selectbox(
+              "Danh mục",
+              [
+                  "Ăn uống",
+                  "Di chuyển",
+                  "Mua sắm",
+                  "Hóa đơn & Tiện ích",
+                  "Giải trí",
+                  "Khác",
+              ],
+          )
+          mo_ta = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
+          so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
+          st.caption(f"Người tạo: **{st.session_state.display_name}**")
+          if st.form_submit_button("Lưu khoản chi", use_container_width=True):
+            row_moi = [
+                str(ngay),
+                danh_muc,
+                mo_ta if mo_ta else danh_muc,
+                int(so_tien),
+                st.session_state.display_name,
+            ]
+            ws_chitieu.append_row(row_moi)
+            load_data.clear()
+            st.rerun()
 
-                if st.form_submit_button("Lưu khoản chi", use_container_width=True):
-              row_moi = [
-                  str(ngay),
-                  danh_muc,
-                  mo_ta if mo_ta else danh_muc,
-                  int(so_tien),
-                  st.session_state.display_name,
-              ]
-              ws_chitieu.append_row(row_moi)
-              load_data.clear()
-              st.rerun()
