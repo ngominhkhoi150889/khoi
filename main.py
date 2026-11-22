@@ -7,149 +7,136 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Quản lý Chi tiêu", page_icon="💸", layout="wide"
+    page_title="Quan ly Chi tieu", page_icon="💸", layout="wide"
 )
 
 
-# --- KẾT NỐI GOOGLE SHEETS ---
 @st.cache_resource
 def init_gsheet():
-  raw_creds = st.secrets.get("gcp_service_account")
-  creds_dict = (
-      json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
-  )
-  client = gspread.service_account_from_dict(creds_dict)
+  raw = st.secrets.get("gcp_service_account")
+  creds = json.loads(raw) if isinstance(raw, str) else dict(raw)
+  client = gspread.service_account_from_dict(creds)
   client.http_client.set_timeout(15)
   sh = client.open_by_key(st.secrets.get("sheet_id"))
   return {
-      "chi_tieu": sh.worksheet("chi_tieu"),
-      "users": sh.worksheet("users"),
-      "config": sh.worksheet("config"),
+      "ct": sh.worksheet("chi_tieu"),
+      "us": sh.worksheet("users"),
+      "cf": sh.worksheet("config"),
   }
 
 
 try:
   sheets = init_gsheet()
-  ws_chitieu = sheets.get("chi_tieu")
-  ws_users = sheets.get("users")
-  ws_config = sheets.get("config")
+  ws_ct = sheets.get("ct")
+  ws_us = sheets.get("us")
+  ws_cf = sheets.get("cf")
 except Exception as e:
-  st.error(f"Lỗi kết nối Google Sheets: {e}")
+  st.error(f"Loi ket noi Google Sheets: {e}")
   st.stop()
 
 
-# --- HÀM BẢO MẬT & QUẢN LÝ TÀI KHOẢN ---
-def hash_password(password):
-  return hashlib.sha256(password.encode()).hexdigest()
+def hash_pw(pw):
+  return hashlib.sha256(pw.encode()).hexdigest()
 
 
 @st.cache_data(ttl=120)
 def load_users():
-  rows = ws_users.get_all_values()
+  rows = ws_us.get_all_values()
   users = {}
   for r in rows[1:]:
-    if len(r) >= 2 and str(r[0]).strip() != "":
-      u_name = str(r[0]).strip()
-      users[u_name] = {
-          "password": str(r[1]).strip(),
-          "display_name": (
-              str(r[2]).strip()
-              if len(r) >= 3 and str(r[2]).strip()
-              else u_name
-          ),
-          "role": (
-              str(r[3]).strip()
-              if len(r) >= 4 and str(r[3]).strip()
-              else "member"
-          ),
-      }
+    if len(r) >= 2 and str(r).strip() != "":
+      u = str(r).strip()
+      dname = str(r).strip() if len(r) >= 3 and str(r).strip() else u
+      rl = str(r).strip() if len(r) >= 4 and str(r).strip() else "member"
+      users[u] = {"password": str(r).strip(), "display_name": dname, "role": rl}
   if "admin" not in users:
-    admin_pw = hash_password("SUPERACCOUNT@123")
-    ws_users.append_row(list(("admin", admin_pw, "Admin", "admin")))
-    users["admin"] = {
-        "password": admin_pw,
-        "display_name": "Admin",
-        "role": "admin",
-    }
+    apw = hash_pw("SUPERACCOUNT@123")
+    ws_us.append_row(["admin", apw, "Admin", "admin"])
+    users["admin"] = {"password": apw, "display_name": "Admin", "role": "admin"}
   return users
 
 
-def add_user_to_sheet(username, password, display_name, role="member"):
-  ws_users.append_row(list((username, hash_password(password), display_name, role)))
+def add_user(u, pw, dname, role="member"):
+  ws_us.append_row([u, hash_pw(pw), dname, role])
   load_users.clear()
 
 
-def delete_user_from_sheet(username):
-  cell = ws_users.find(username)
+def del_user(u):
+  cell = ws_us.find(u)
   if cell:
-    ws_users.delete_rows(cell.row)
+    ws_us.delete_rows(cell.row)
     load_users.clear()
 
 
-# --- HÀM XỬ LÝ DỮ LIỆU & NGÂN SÁCH ---
 @st.cache_data(ttl=60)
 def load_data():
-  rows = ws_chitieu.get_all_values()
-  cols_chuan = list(("Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"))
-  data_rows = list()
+  rows = ws_ct.get_all_values()
+  cols = ["Ngay", "Danh_muc", "Mo_ta", "So_tien", "Nguoi_tao"]
+  data = []
   for r in rows[1:]:
-    if len(r) >= 4 and str(r[0]).strip() != "":
-      row_5 = list(r[:5]) if len(r) >= 5 else list(r) + list(("Admin",))
-      data_rows.append(row_5)
-
-  if not data_rows:
-    return pd.DataFrame(columns=cols_chuan)
-
-  df = pd.DataFrame(data_rows, columns=cols_chuan)
-  df["Ngày"] = pd.to_datetime(df["Ngày"], errors="coerce").dt.date
-  df = df.dropna(subset=list(("Ngày",)))
-  df["Số tiền"] = (
-      df["Số tiền"].astype(str).str.replace(",", "").str.replace(".", "")
+    if len(r) >= 4 and str(r).strip() != "":
+      r5 = r[:5] if len(r) >= 5 else r + ["Admin"]
+      data.append(r5)
+  if not data:
+    return pd.DataFrame(columns=cols)
+  df = pd.DataFrame(data, columns=cols)
+  df["Ngay"] = pd.to_datetime(df["Ngay"], errors="coerce").dt.date
+  df = df.dropna(subset=["Ngay"])
+  df["So_tien"] = (
+      df["So_tien"].astype(str).str.replace(",", "").str.replace(".", "")
   )
-  df["Số tiền"] = pd.to_numeric(df["Số tiền"], errors="coerce").fillna(0)
+  df["So_tien"] = pd.to_numeric(df["So_tien"], errors="coerce").fillna(0)
   return df
 
 
-def save_all_data(df):
-  ws_chitieu.clear()
-  ws_chitieu.append_row(list(("Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo")))
+def save_all(df):
+  ws_ct.clear()
+  ws_ct.append_row(["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"])
   if not df.empty:
-    df_save = df.copy()
-    df_save["Ngày"] = df_save["Ngày"].astype(str)
-    ws_chitieu.append_rows(df_save.values.tolist())
+    dfs = df.copy()
+    dfs["Ngay"] = dfs["Ngay"].astype(str)
+    ws_ct.append_rows(dfs.values.tolist())
   load_data.clear()
 
 
 @st.cache_data(ttl=120)
 def load_budget():
-  rows = ws_config.get_all_values()
+  rows = ws_cf.get_all_values()
   for r in rows[1:]:
-    if len(r) >= 2 and str(r[0]).strip() == "han_muc":
+    if len(r) >= 2 and str(r).strip() == "han_muc":
       try:
-        return int(float(str(r[1]).strip()))
+        return int(float(str(r).strip()))
       except ValueError:
         return 5000000
-  ws_config.append_row(list(("han_muc", 5000000)))
+  ws_cf.append_row(["han_muc", 5000000])
   return 5000000
 
 
-def save_budget(amount):
-  cell = ws_config.find("han_muc")
+def save_budget(amt):
+  cell = ws_cf.find("han_muc")
   if cell:
-    ws_config.update_cell(cell.row, 2, int(amount))
+    ws_cf.update_cell(cell.row, 2, int(amt))
   else:
-    ws_config.append_row(list(("han_muc", int(amount))))
+    ws_cf.append_row(["han_muc", int(amt)])
   load_budget.clear()
 
 
-def to_excel(df_export):
-  output = io.BytesIO()
-  with pd.ExcelWriter(output, engine="openpyxl") as writer:
-    df_export.to_excel(writer, index=False, sheet_name="ChiTieu")
-  return output.getvalue()
+def to_excel(df_ex):
+  out = io.BytesIO()
+  df_out = df_ex.rename(
+      columns={
+          "Ngay": "Ngày",
+          "Danh_muc": "Danh mục",
+          "Mo_ta": "Mô tả",
+          "So_tien": "Số tiền",
+          "Nguoi_tao": "Người tạo",
+      }
+  )
+  with pd.ExcelWriter(out, engine="openpyxl") as writer:
+    df_out.to_excel(writer, index=False, sheet_name="ChiTieu")
+  return out.getvalue()
 
 
-# --- KHỞI TẠO TRẠNG THÁI ĐĂNG NHẬP ---
 if "logged_in" not in st.session_state:
   st.session_state.logged_in = False
   st.session_state.username = ""
@@ -158,132 +145,114 @@ if "logged_in" not in st.session_state:
 
 users_db = load_users()
 
-# ==========================================
-# MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ TÀI KHOẢN
-# ==========================================
 if not st.session_state.logged_in:
   st.title("🔐 Đăng nhập Hệ thống Quản lý Chi tiêu")
-  col_empty1, col_auth, col_empty2 = st.columns(list((1, 1.5, 1)))
-
-  with col_auth:
-    tab_login, tab_register = st.tabs(list(("Đăng nhập", "Tạo tài khoản mới")))
-
-    with tab_login:
+  c_l, c_m, c_r = st.columns([1, 1.5, 1])
+  with c_m:
+    t1, t2 = st.tabs(["Đăng nhập", "Tạo tài khoản mới"])
+    with t1:
       with st.form("login_form"):
-        user_input = st.text_input("Tên đăng nhập").strip()
-        pass_input = st.text_input("Mật khẩu", type="password")
+        ui = st.text_input("Tên đăng nhập").strip()
+        pi = st.text_input("Mật khẩu", type="password")
         if st.form_submit_button("Đăng nhập", use_container_width=True):
-          u_info = users_db.get(user_input)
-          if u_info and u_info.get("password") == hash_password(pass_input):
+          uinfo = users_db.get(ui)
+          if uinfo and uinfo.get("password") == hash_pw(pi):
             st.session_state.logged_in = True
-            st.session_state.username = user_input
-            st.session_state.display_name = u_info.get("display_name")
+            st.session_state.username = ui
+            st.session_state.display_name = uinfo.get("display_name")
             st.session_state.is_admin = (
-                user_input == "admin" or u_info.get("role") == "admin"
+                ui == "admin" or uinfo.get("role") == "admin"
             )
             st.rerun()
           else:
             st.error("Sai tên đăng nhập hoặc mật khẩu!")
-
-    with tab_register:
-      with st.form("register_form"):
-        new_user = st.text_input(
-            "Tên đăng nhập mới (viết liền, không dấu)"
-        ).strip()
-        new_display = st.text_input("Tên hiển thị (VD: Minh Khôi)").strip()
-        new_pass = st.text_input("Mật khẩu", type="password")
-        confirm_pass = st.text_input("Nhập lại mật khẩu", type="password")
+    with t2:
+      with st.form("reg_form"):
+        nu = st.text_input("Tên đăng nhập mới (viết liền, không dấu)").strip()
+        nd = st.text_input("Tên hiển thị (VD: Minh Khôi)").strip()
+        npw = st.text_input("Mật khẩu", type="password")
+        cpw = st.text_input("Nhập lại mật khẩu", type="password")
         if st.form_submit_button("Tạo tài khoản", use_container_width=True):
-          if not new_user or not new_display or not new_pass:
+          if not nu or not nd or not npw:
             st.warning("Vui lòng điền đầy đủ thông tin.")
-          elif new_user.lower() == "admin" or new_user in users_db:
-            st.error("Tên đăng nhập này đã tồn tại hoặc không hợp lệ!")
-          elif new_pass != confirm_pass:
-            st.error("Mật khẩu nhập lại không khớp!")
+          elif nu.lower() == "admin" or nu in users_db:
+            st.error("Tên đăng nhập đã tồn tại!")
+          elif npw != cpw:
+            st.error("Mật khẩu không khớp!")
           else:
-            add_user_to_sheet(new_user, new_pass, new_display, "member")
-            st.success(
-                f"Đã tạo tài khoản **{new_display}**! Hãy chuyển sang tab Đăng nhập."
-            )
+            add_user(nu, npw, nd, "member")
+            st.success(f"Đã tạo tài khoản **{nd}**! Chuyển sang tab Đăng nhập.")
   st.stop()
 
-# ==========================================
-# GIAO DIỆN CHÍNH SAU KHI ĐĂNG NHẬP
-# ==========================================
 df = load_data()
-han_muc_thang = load_budget()
+han_muc = load_budget()
 is_admin = st.session_state.is_admin
 
-top_title, top_user = st.columns(list((4, 1.2)))
-with top_title:
+top1, top2 = st.columns([4, 1.2])
+with top1:
   st.title("💸 Quản lý & Thống kê Chi tiêu")
-with top_user:
-  role_badge = "👑 Quản trị viên" if is_admin else "👤 Thành viên"
-  st.markdown(f"**{st.session_state.display_name}** ({role_badge})")
+with top2:
+  badge = "👑 Quản trị viên" if is_admin else "👤 Thành viên"
+  st.markdown(f"**{st.session_state.display_name}** ({badge})")
   if st.button("🚪 Đăng xuất", use_container_width=True):
     st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.display_name = ""
-    st.session_state.is_admin = False
     st.rerun()
 
-# --- XỬ LÝ LỊCH & TRẠNG THÁI KHÓA THÁNG ---
 hom_nay = date.today()
-thang_hien_tai_str = hom_nay.strftime("%Y-%m")
+thang_now = hom_nay.strftime("%Y-%m")
 
-cac_thang = set(list((thang_hien_tai_str,)))
+cac_thang = {thang_now}
 if not df.empty:
-  cac_thang.update(pd.to_datetime(df["Ngày"]).dt.strftime("%Y-%m").unique())
-danh_sach_thang = sorted(list(cac_thang), reverse=True)
+  cac_thang.update(pd.to_datetime(df["Ngay"]).dt.strftime("%Y-%m").unique())
+ds_thang = sorted(list(cac_thang), reverse=True)
 
-col_filter, col_user_filter, col_status = st.columns(list((1.2, 1.2, 2)))
-with col_filter:
-  thang_duoc_chon = st.selectbox(
+cf1, cf2, cf3 = st.columns([1.2, 1.2, 2])
+with cf1:
+  thang_chon = st.selectbox(
       "📅 Chọn lịch tháng:",
-      danh_sach_thang,
+      ds_thang,
       format_func=lambda x: (
-          f"Tháng {x.split('-')[1]}/{x.split('-')[0]}"
-          + (" (Hiện tại)" if x == thang_hien_tai_str else " 🔒")
+          f"Tháng {x.split('-')}/{x.split('-')}"
+          + (" (Hiện tại)" if x == thang_now else " 🔒")
       ),
   )
 
-with col_user_filter:
-  ds_nguoi = list(("Tất cả",))
-  if not df.empty:
-    ds_nguoi.extend(sorted(df["Người tạo"].unique().tolist()))
-  nguoi_tao_chon = st.selectbox("👥 Lọc theo người tạo:", ds_nguoi)
+with cf2:
+  ds_nguoi = ["Tất cả"] + (
+      sorted(df["Nguoi_tao"].unique().tolist()) if not df.empty else []
+  )
+  nguoi_chon = st.selectbox("👥 Lọc theo người tạo:", ds_nguoi)
 
-bi_khoa = thang_duoc_chon < thang_hien_tai_str
+bi_khoa = thang_chon < thang_now
 
-with col_status:
+with cf3:
   st.write("")
   st.write("")
   if bi_khoa:
     st.warning(
-        f"🔒 **Tháng {thang_duoc_chon.split('-')[1]}/{thang_duoc_chon.split('-')[0]} đã khóa.** Không thể thêm hoặc xóa."
+        f"🔒 **Tháng {thang_chon.split('-')}/{thang_chon.split('-')} đã khóa.** Không thể thêm hoặc xóa."
     )
   else:
     st.success(
-        f"🔓 **Đang mở sổ tháng {thang_duoc_chon.split('-')[1]}/{thang_duoc_chon.split('-')[0]}.** Dữ liệu lưu trực tiếp Google Sheets."
+        f"🔓 **Đang mở sổ tháng {thang_chon.split('-')}/{thang_chon.split('-')}.** Dữ liệu lưu Google Sheets."
     )
 
-# --- SIDEBAR: HẠN MỨC, NHẬP KHOẢN CHI & QUẢN TRỊ ---
 with st.sidebar:
   st.header("🎯 Hạn mức chi tiêu")
   if is_admin:
-    han_muc_moi = st.number_input(
+    hm_moi = st.number_input(
         "Ngân sách tháng (VNĐ)",
         min_value=100000,
         step=500000,
-        value=int(han_muc_thang),
+        value=int(han_muc),
     )
-    if han_muc_moi != han_muc_thang:
-      save_budget(han_muc_moi)
-      han_muc_thang = han_muc_moi
-      st.toast("Đã lưu hạn mức lên Google Sheets!")
+    if hm_moi != han_muc:
+      save_budget(hm_moi)
+      han_muc = hm_moi
+      st.toast("Đã lưu hạn mức!")
   else:
     st.info(
-        f"Ngân sách tháng: **{han_muc_thang:,.0f} đ**\n*(Chỉ Admin được thay đổi)*"
+        f"Ngân sách tháng: **{han_muc:,.0f} đ**\n*(Chỉ Admin được thay đổi)*"
     )
 
   st.divider()
@@ -291,28 +260,159 @@ with st.sidebar:
   if bi_khoa:
     st.error("Tháng này đã bị khóa sổ.")
   else:
-    ngay_dau_thang = hom_nay.replace(day=1)
+    dau_thang = hom_nay.replace(day=1)
     with st.form("form_chi_tieu", clear_on_submit=True):
       ngay = st.date_input(
-          "Ngày chi",
-          value=hom_nay,
-          min_value=ngay_dau_thang,
-          max_value=hom_nay,
+          "Ngày chi", value=hom_nay, min_value=dau_thang, max_value=hom_nay
       )
-      ds_danh_muc = list((
-          "Ăn uống",
-          "Di chuyển",
-          "Mua sắm",
-          "Hóa đơn & Tiện ích",
-          "Giải trí",
-          "Khác",
-      ))
-      danh_muc = st.selectbox("Danh mục", ds_danh_muc)
-      mo_ta = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
-      so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
-      st.caption(f"Người tạo: **{st.session_state.display_name}**")
-
+      dm = st.selectbox(
+          "Danh mục",
+          [
+              "Ăn uống",
+              "Di chuyển",
+              "Mua sắm",
+              "Hóa đơn & Tiện ích",
+              "Giải trí",
+              "Khác",
+          ],
+      )
+      mota = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
+      tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
+      nguoi = st.session_state.display_name
+      st.caption(f"Người tạo: **{nguoi}**")
       if st.form_submit_button("Lưu khoản chi", use_container_width=True):
-        row_moi = list((
-            str(ngay),
-            danh_muc,
+        ws_ct.append_row(
+            [str(ngay), dm, mota if mota else dm, int(tien), nguoi]
+        )
+        load_data.clear()
+        st.rerun()
+
+  if is_admin:
+    st.divider()
+    with st.expander("⚙️ Quản trị tài khoản (Admin)", expanded=False):
+      m_keys = [u for u in users_db.keys() if u != "admin"]
+      if not m_keys:
+        st.write("Chưa có tài khoản thành viên nào khác.")
+      else:
+        for uk in m_keys:
+          ui_info = users_db.get(uk)
+          uc1, uc2 = st.columns()
+          uc1.write(f"• **{ui_info.get('display_name')}** (`{uk}`)")
+          if uc2.button("Xóa", key=f"del_u_{uk}"):
+            del_user(uk)
+            st.toast(f"Đã xóa {uk}")
+            st.rerun()
+
+if not df.empty:
+  df["YM"] = pd.to_datetime(df["Ngay"]).dt.strftime("%Y-%m")
+  df_t = df[df["YM"] == thang_chon].copy()
+  if nguoi_chon != "Tất cả":
+    df_t = df_t[df_t["Nguoi_tao"] == nguoi_chon]
+else:
+  df_t = pd.DataFrame(
+      columns=["Ngay", "Danh_muc", "Mo_ta", "So_tien", "Nguoi_tao"]
+  )
+
+st.divider()
+
+tong = df_t["So_tien"].sum() if not df_t.empty else 0
+con_lai = han_muc - tong
+ty_le = tong / han_muc if han_muc > 0 else 0
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Tổng tiêu đã lọc", f"{tong:,.0f} đ")
+c2.metric("Hạn mức tháng", f"{han_muc:,.0f} đ")
+c3.metric(
+    "Ngân sách còn lại",
+    f"{con_lai:,.0f} đ",
+    delta=f"{con_lai:,.0f} đ",
+    delta_color="normal",
+)
+c4.metric("Số giao dịch", f"{len(df_t)} lần")
+
+st.progress(min(ty_le, 1.0))
+if ty_le >= 1.0:
+  st.error(
+      f"🚨 **Cảnh báo vượt ngân sách!** Vượt hạn mức {abs(con_lai):,.0f} đ ({ty_le*100:.1f}%)."
+  )
+elif ty_le >= 0.8:
+  st.warning(
+      f"⚠️ **Sắp chạm trần ngân sách:** Đã dùng {ty_le*100:.1f}% hạn mức."
+  )
+else:
+
+st.info(f"✅ Trong tầm kiểm soát ({ty_le*100:.1f}% ngân sách).")
+st.divider()
+ch1, ch2 = st.columns(2)
+with ch1:
+st.subheader("📈 So sánh chi tiêu giữa các tháng")
+if not df.empty:
+st.bar_chart(df.groupby("YM")["So_tien"].sum().sort_index())
+else:
+st.caption("Chưa đủ dữ liệu để so sánh.")
+with ch2:
+st.subheader(
+f"📊 Phân bổ danh mục (Tháng {thang_chon.split('-')}/{thang_chon.split('-')})"
+)
+if not df_t.empty:
+st.bar_chart(df_t.groupby("Danh_muc")["So_tien"].sum())
+else:
+st.caption("Không có khoản chi nào trong tháng này.")
+st.divider()
+hc1, hc2 = st.columns()
+with hc1:
+st.subheader("📋 Chi tiết giao dịch")
+with hc2:
+if not df_t.empty:
+df_ex = df_t.drop(columns=["YM"], errors="ignore")
+st.download_button(
+"📥 Xuất Excel (.xlsx)",
+to_excel(df_ex),
+f"Chi_tieu_{thang_chon}.xlsx",
+"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+use_container_width=True,
+)
+if df_t.empty:
+st.info("Chưa có dữ liệu chi tiêu nào phù hợp.")
+else:
+df_s = df_t.sort_values(by="Ngay", ascending=False)
+if bi_khoa:
+cols = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
+cols.markdown("Ngày")
+cols.markdown("Danh mục")
+cols.markdown("Mô tả")
+cols.markdown("Số tiền")
+cols.markdown("Người tạo")
+else:
+cols = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
+cols.markdown("Ngày")
+cols.markdown("Danh mục")
+cols.markdown("Mô tả")
+cols.markdown("Số tiền")
+cols.markdown("Người tạo")
+cols.markdown("Xóa")
+st.markdown("---")
+for idx, row in df_s.iterrows():
+if bi_khoa:
+rc = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
+rc.write(str(row["Ngay"]))
+rc.write(row["Danh_muc"])
+rc.write(row["Mo_ta"])
+rc.write(f"{row['So_tien']:,.0f} đ")
+rc.write(f"👤 {row['Nguoi_tao']}")
+else:
+rc = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
+rc.write(str(row["Ngay"]))
+rc.write(row["Danh_muc"])
+rc.write(row["Mo_ta"])
+rc.write(f"{row['So_tien']:,.0f} đ")
+rc.write(f"👤 {row['Nguoi_tao']}")
+can_del = is_admin or (row["Nguoi_tao"] == st.session_state.display_name)
+if can_del:
+if rc.button("🗑️", key=f"del_{idx}", help="Xóa khoản chi này"):
+df_u = df.drop(index=idx).drop(columns=["YM"], errors="ignore")
+save_all(df_u)
+st.rerun()
+else:
+rc.write("—")
+
