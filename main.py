@@ -358,8 +358,8 @@ if not df_t.empty:
     st.bar_chart(df_t.groupby("Danh_muc")["So_tien"].sum())
 else:
     st.caption("Không có khoản chi nào trong tháng này.")
-    st.divider()
-    hc1, hc2 = st.columns((3, 1))
+st.divider()
+hc1, hc2 = st.columns((3, 1))
 
 with hc1:
     st.subheader("📋 Chi tiết giao dịch")
