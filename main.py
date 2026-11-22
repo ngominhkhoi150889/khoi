@@ -334,6 +334,26 @@ with st.sidebar:
         ])
         load_data.clear()
         st.rerun()
+@st.cache_data(ttl=60)
+def load_data():
+  rows = ws_chitieu.get_all_values()
+  data_rows = [
+      r[:5] for r in rows[1:] if len(r) >= 4 and str(r[0]).strip() != ""
+  ]
+  if not data_rows:
+    return pd.DataFrame(
+        columns=["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"]
+    )
+  cleaned_rows = [r + ["Admin"] if len(r) == 4 else r for r in data_rows]
+  df = pd.DataFrame(
+      cleaned_rows,
+      columns=["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"],
+  )
+  df["Ngày"] = pd.to_datetime(df["Ngày"], errors="coerce").dt.date
+  df = df.dropna(subset=["Ngày"])
+  df["Số tiền"] = pd.to_numeric(df["Số tiền"], errors="coerce").fillna(0)
+  return df
+
 
   if is_admin:
     st.divider()
