@@ -341,9 +341,9 @@ elif ty_le >= 0.8:
   )
 else:
 
-st.info(f"✅ Trong tầm kiểm soát ({ty_le*100:.1f}% ngân sách).")
-st.divider()
-ch1, ch2 = st.columns(2)
+    st.info(f"✅ Trong tầm kiểm soát ({ty_le*100:.1f}% ngân sách).")
+    st.divider()
+    ch1, ch2 = st.columns(2)
 with ch1:
 st.subheader("📈 So sánh chi tiêu giữa các tháng")
 if not df.empty:
