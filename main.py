@@ -9,38 +9,9 @@ import streamlit as st
 st.set_page_config(
     page_title="Quản lý Chi tiêu", page_icon="💸", layout="wide"
 )
-status_box = st.empty()
-status_box.info("⏳ Đang đọc cấu hình Secrets...")
-
-try:
-  raw_creds = st.secrets["gcp_service_account"]
-  creds_dict = (
-      json.loads(raw_creds) if isinstance(raw_creds, str) else dict(raw_creds)
-  )
-  sheet_id = st.secrets["sheet_id"]
-except Exception as e:
-  status_box.error(f"❌ Lỗi định dạng Secrets: {e}")
-  st.stop()
-
-status_box.info("⏳ Đang kết nối tới Google Sheets...")
-try:
-  client = gspread.service_account_from_dict(creds_dict)
-  client.http_client.set_timeout(15)  # Giới hạn tối đa 15 giây để không xoay vô tận
-  sh = client.open_by_key(sheet_id)
-  ws_chitieu = sh.worksheet("chi_tieu")
-  ws_users = sh.worksheet("users")
-  ws_config = sh.worksheet("config")
-  status_box.empty()  # Kết nối xong thì xóa dòng thông báo
-except Exception as e:
-  status_box.error(f"❌ Lỗi kết nối Google Sheets: {repr(e)}")
-  st.stop()
 
 
-
-
-
-
-# --- KẾT NỐI GOOGLE SHEETS (CHỈ KẾT NỐI 1 LẦN DUY NHẤT) ---
+# --- KẾT NỐI GOOGLE SHEETS ---
 @st.cache_resource
 def init_gsheet():
   raw_creds = st.secrets["gcp_service_account"]
@@ -67,22 +38,24 @@ except Exception as e:
   st.stop()
 
 
-# --- HÀM BẢO MẬT & QUẢN LÝ TÀI KHOẢN (CÓ CACHE) ---
+# --- HÀM BẢO MẬT & QUẢN LÝ TÀI KHOẢN ---
 def hash_password(password):
   return hashlib.sha256(password.encode()).hexdigest()
 
 
 @st.cache_data(ttl=120)
 def load_users():
-  records = ws_users.get_all_records()
+  rows = ws_users.get_all_values()
   users = {}
-  for r in records:
-    u_name = str(r.get("username", "")).strip()
-    if u_name:
+  for r in rows[1:]:
+    if len(r) >= 2 and r[0].strip() != "":
+      u_name = r[0].strip()
       users[u_name] = {
-          "password": str(r.get("password", "")),
-          "display_name": str(r.get("display_name", u_name)),
-          "role": str(r.get("role", "member")),
+          "password": r[1].strip(),
+          "display_name": (
+              r[2].strip() if len(r) >= 3 and r[2].strip() else u_name
+          ),
+          "role": r[3].strip() if len(r) >= 4 and r[3].strip() else "member",
       }
   if "admin" not in users:
     admin_pw = hash_password("SUPERACCOUNT@123")
@@ -107,27 +80,32 @@ def delete_user_from_sheet(username):
     load_users.clear()
 
 
-# --- HÀM XỬ LÝ DỮ LIỆU & NGÂN SÁCH (CÓ CACHE) ---
+# --- HÀM XỬ LÝ DỮ LIỆU & NGÂN SÁCH ---
 @st.cache_data(ttl=60)
 def load_data():
   rows = ws_chitieu.get_all_values()
-  data_rows = [
-      r[:5] for r in rows[1:] if len(r) >= 4 and str(r[0]).strip() != ""
-  ]
+  data_rows = []
+  for r in rows[1:]:
+    if len(r) >= 4 and r[0].strip() != "":
+      row_5 = r[:5] if len(r) >= 5 else r + ["Admin"]
+      data_rows.append(row_5)
+
   if not data_rows:
     return pd.DataFrame(
         columns=["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"]
     )
-  cleaned_rows = [r + ["Admin"] if len(r) == 4 else r for r in data_rows]
+
   df = pd.DataFrame(
-      cleaned_rows,
-      columns=["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"],
+      data_rows, columns=["Ngày", "Danh mục", "Mô tả", "Số tiền", "Người tạo"]
   )
   df["Ngày"] = pd.to_datetime(df["Ngày"], errors="coerce").dt.date
   df = df.dropna(subset=["Ngày"])
+  # Làm sạch dấu phẩy/chấm nếu Google Sheets tự định dạng số tiền
+  df["Số tiền"] = (
+      df["Số tiền"].astype(str).str.replace(",", "").str.replace(".", "")
+  )
   df["Số tiền"] = pd.to_numeric(df["Số tiền"], errors="coerce").fillna(0)
   return df
-
 
 
 def save_all_data(df):
@@ -142,10 +120,13 @@ def save_all_data(df):
 
 @st.cache_data(ttl=120)
 def load_budget():
-  records = ws_config.get_all_records()
-  for r in records:
-    if r.get("key") == "han_muc":
-      return int(r.get("value", 5000000))
+  rows = ws_config.get_all_values()
+  for r in rows[1:]:
+    if len(r) >= 2 and r[0].strip() == "han_muc":
+      try:
+        return int(float(r[1].strip()))
+      except ValueError:
+        return 5000000
   ws_config.append_row(["han_muc", 5000000])
   return 5000000
 
@@ -339,19 +320,3 @@ with st.sidebar:
             danh_muc,
             mo_ta if mo_ta else danh_muc,
             int(so_tien),
-            st.session_state.display_name,
-        ])
-        load_data.clear()
-        st.rerun()
-
-  if is_admin:
-    st.divider()
-    with st.expander("⚙️ Quản trị tài khoản (Admin)", expanded=False):
-      member_keys = [u for u in users_db.keys() if u != "admin"]
-      if not member_keys:
-        st.write("Chưa có tài khoản thành viên nào khác.")
-      else:
-        for u_key in member_keys:
-          u_info = users_db[u_key]
-          u_col1, u_col2 = st.columns([2, 1])
-          u_col1.write(f"• **{u_info['display_name']}** (`{u_key}`)")
