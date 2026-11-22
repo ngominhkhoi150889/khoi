@@ -374,46 +374,55 @@ with hc2:
     use_container_width=True,
     )
 if df_t.empty:
-    st.info("Chưa có dữ liệu chi tiêu nào phù hợp.")
+  st.info("Chưa có dữ liệu chi tiêu nào phù hợp.")
 else:
-    df_s = df_t.sort_values(by="Ngay", ascending=False)
-if bi_khoa:
-    cols = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
-    cols.markdown("Ngày")
-    cols.markdown("Danh mục")
-    cols.markdown("Mô tả")
-    cols.markdown("Số tiền")
-    cols.markdown("Người tạo")
-else:
-    cols = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
-    cols.markdown("Ngày")
-    cols.markdown("Danh mục")
-    cols.markdown("Mô tả")
-    cols.markdown("Số tiền")
-    cols.markdown("Người tạo")
-    cols.markdown("Xóa")
-    st.markdown("---")
-for idx, row in df_s.iterrows():
-    if bi_khoa:
-        rc = st.columns([1.2, 1.5, 2.5, 1.5, 1.5])
-        rc.write(str(row["Ngay"]))
-        rc.write(row["Danh_muc"])
-        rc.write(row["Mo_ta"])
-        rc.write(f"{row['So_tien']:,.0f} đ")
-        rc.write(f"👤 {row['Nguoi_tao']}")
-else:
-        rc = st.columns([1.2, 1.5, 2.3, 1.5, 1.5, 0.7])
-        rc.write(str(row["Ngay"]))
-        rc.write(row["Danh_muc"])
-        rc.write(row["Mo_ta"])
-        rc.write(f"{row['So_tien']:,.0f} đ")
-        rc.write(f"👤 {row['Nguoi_tao']}")
-        can_del = is_admin or (row["Nguoi_tao"] == st.session_state.display_name)
-if can_del:
-    if rc.button("🗑️", key=f"del_{idx}", help="Xóa khoản chi này"):
-        df_u = df.drop(index=idx).drop(columns=["YM"], errors="ignore")
-        save_all(df_u)
-        st.rerun()
-    else:
-        rc.write("—")
+  df_s = df_t.sort_values(by="Ngay", ascending=False)
+  if bi_khoa:
+    c_ngay, c_dm, c_mota, c_tien, c_nguoi = st.columns((1.2, 1.5, 2.5, 1.5, 1.5))
+    c_ngay.markdown("**Ngày**")
+    c_dm.markdown("**Danh mục**")
+    c_mota.markdown("**Mô tả**")
+    c_tien.markdown("**Số tiền**")
+    c_nguoi.markdown("**Người tạo**")
+  else:
+    c_ngay, c_dm, c_mota, c_tien, c_nguoi, c_xoa = st.columns(
+        (1.2, 1.5, 2.3, 1.5, 1.5, 0.7)
+    )
+    c_ngay.markdown("**Ngày**")
+    c_dm.markdown("**Danh mục**")
+    c_mota.markdown("**Mô tả**")
+    c_tien.markdown("**Số tiền**")
+    c_nguoi.markdown("**Người tạo**")
+    c_xoa.markdown("**Xóa**")
 
+  st.markdown("---")
+
+  for idx, row in df_s.iterrows():
+    if bi_khoa:
+      r_ngay, r_dm, r_mota, r_tien, r_nguoi = st.columns(
+          (1.2, 1.5, 2.5, 1.5, 1.5)
+      )
+      r_ngay.write(str(row.get("Ngay")))
+      r_dm.write(row.get("Danh_muc"))
+      r_mota.write(row.get("Mo_ta"))
+      r_tien.write(f"{row.get('So_tien'):,.0f} đ")
+      r_nguoi.write(f"👤 {row.get('Nguoi_tao')}")
+    else:
+      r_ngay, r_dm, r_mota, r_tien, r_nguoi, r_xoa = st.columns(
+          (1.2, 1.5, 2.3, 1.5, 1.5, 0.7)
+      )
+      r_ngay.write(str(row.get("Ngay")))
+      r_dm.write(row.get("Danh_muc"))
+      r_mota.write(row.get("Mo_ta"))
+      r_tien.write(f"{row.get('So_tien'):,.0f} đ")
+      r_nguoi.write(f"👤 {row.get('Nguoi_tao')}")
+      can_del = is_admin or (
+          row.get("Nguoi_tao") == st.session_state.display_name
+      )
+      if can_del:
+        if r_xoa.button("🗑️", key=f"del_{idx}", help="Xóa khoản chi này"):
+          df_u = df.drop(index=idx).drop(columns=("YM",), errors="ignore")
+          save_all(df_u)
+          st.rerun()
+      else:
+        r_xoa.write("—")
