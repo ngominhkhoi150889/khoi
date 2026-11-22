@@ -314,9 +314,14 @@ with st.sidebar:
       so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
       st.caption(f"Người tạo: **{st.session_state.display_name}**")
 
-      if st.form_submit_button("Lưu khoản chi", use_container_width=True):
-        ws_chitieu.append_row([
-            str(ngay),
-            danh_muc,
-            mo_ta if mo_ta else danh_muc,
-            int(so_tien),
+                if st.form_submit_button("Lưu khoản chi", use_container_width=True):
+              row_moi = [
+                  str(ngay),
+                  danh_muc,
+                  mo_ta if mo_ta else danh_muc,
+                  int(so_tien),
+                  st.session_state.display_name,
+              ]
+              ws_chitieu.append_row(row_moi)
+              load_data.clear()
+              st.rerun()
