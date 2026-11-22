@@ -296,7 +296,7 @@ with st.sidebar:
       else:
         for uk in m_keys:
           ui_info = users_db.get(uk)
-          uc1, uc2 = st.columns()
+          uc1, uc2 = st.columns(2)
           uc1.write(f"• **{ui_info.get('display_name')}** (`{uk}`)")
           if uc2.button("Xóa", key=f"del_u_{uk}"):
             del_user(uk)
