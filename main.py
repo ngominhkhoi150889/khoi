@@ -48,14 +48,20 @@ def load_users():
   rows = ws_users.get_all_values()
   users = {}
   for r in rows[1:]:
-    if len(r) >= 2 and r[0].strip() != "":
-      u_name = r[0].strip()
+    if len(r) >= 2 and str(r[0]).strip() != "":
+      u_name = str(r[0]).strip()
       users[u_name] = {
-          "password": r[1].strip(),
+          "password": str(r[1]).strip(),
           "display_name": (
-              r[2].strip() if len(r) >= 3 and r[2].strip() else u_name
+              str(r[2]).strip()
+              if len(r) >= 3 and str(r[2]).strip()
+              else u_name
           ),
-          "role": r[3].strip() if len(r) >= 4 and r[3].strip() else "member",
+          "role": (
+              str(r[3]).strip()
+              if len(r) >= 4 and str(r[3]).strip()
+              else "member"
+          ),
       }
   if "admin" not in users:
     admin_pw = hash_password("SUPERACCOUNT@123")
@@ -86,7 +92,7 @@ def load_data():
   rows = ws_chitieu.get_all_values()
   data_rows = []
   for r in rows[1:]:
-    if len(r) >= 4 and r[0].strip() != "":
+    if len(r) >= 4 and str(r[0]).strip() != "":
       row_5 = r[:5] if len(r) >= 5 else r + ["Admin"]
       data_rows.append(row_5)
 
@@ -100,7 +106,6 @@ def load_data():
   )
   df["Ngày"] = pd.to_datetime(df["Ngày"], errors="coerce").dt.date
   df = df.dropna(subset=["Ngày"])
-  # Làm sạch dấu phẩy/chấm nếu Google Sheets tự định dạng số tiền
   df["Số tiền"] = (
       df["Số tiền"].astype(str).str.replace(",", "").str.replace(".", "")
   )
@@ -122,9 +127,9 @@ def save_all_data(df):
 def load_budget():
   rows = ws_config.get_all_values()
   for r in rows[1:]:
-    if len(r) >= 2 and r[0].strip() == "han_muc":
+    if len(r) >= 2 and str(r[0]).strip() == "han_muc":
       try:
-        return int(float(r[1].strip()))
+        return int(float(str(r[1]).strip()))
       except ValueError:
         return 5000000
   ws_config.append_row(["han_muc", 5000000])
@@ -292,36 +297,29 @@ with st.sidebar:
     st.error("Tháng này đã bị khóa sổ.")
   else:
     ngay_dau_thang = hom_nay.replace(day=1)
-          with st.form("form_chi_tieu", clear_on_submit=True):
-          ngay = st.date_input(
-              "Ngày chi",
-              value=hom_nay,
-              min_value=ngay_dau_thang,
-              max_value=hom_nay,
-          )
-          danh_muc = st.selectbox(
-              "Danh mục",
-              [
-                  "Ăn uống",
-                  "Di chuyển",
-                  "Mua sắm",
-                  "Hóa đơn & Tiện ích",
-                  "Giải trí",
-                  "Khác",
-              ],
-          )
-          mo_ta = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
-          so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
-          st.caption(f"Người tạo: **{st.session_state.display_name}**")
-          if st.form_submit_button("Lưu khoản chi", use_container_width=True):
-            row_moi = [
-                str(ngay),
-                danh_muc,
-                mo_ta if mo_ta else danh_muc,
-                int(so_tien),
-                st.session_state.display_name,
-            ]
-            ws_chitieu.append_row(row_moi)
-            load_data.clear()
-            st.rerun()
+    with st.form("form_chi_tieu", clear_on_submit=True):
+      ngay = st.date_input(
+          "Ngày chi",
+          value=hom_nay,
+          min_value=ngay_dau_thang,
+          max_value=hom_nay,
+      )
+      danh_muc = st.selectbox(
+          "Danh mục",
+          [
+              "Ăn uống",
+              "Di chuyển",
+              "Mua sắm",
+              "Hóa đơn & Tiện ích",
+              "Giải trí",
+              "Khác",
+          ],
+      )
+      mo_ta = st.text_input("Mô tả (VD: Cà phê, Đổ xăng...)")
+      so_tien = st.number_input("Số tiền (VNĐ)", min_value=1000, step=5000)
+      st.caption(f"Người tạo: **{st.session_state.display_name}**")
 
+      if st.form_submit_button("Lưu khoản chi", use_container_width=True):
+        row_moi = [
+            str(ngay),
+            danh_muc,
